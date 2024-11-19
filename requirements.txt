@@ -1,0 +1,6 @@
+opencv-python
+flask
+flask-socketio
+numpy
+torch
+streamlit
