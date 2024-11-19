@@ -1,0 +1,5 @@
+
+train: train.txt
+val: test.txt
+
+names: [ 'prohibitory', 'danger', 'mandatory', 'other' ]  # Замените на ваши классы

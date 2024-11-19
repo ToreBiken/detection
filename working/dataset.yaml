@@ -1,0 +1,8 @@
+names:
+- prohibitory
+- danger
+- mandatory
+- other
+nc: 4
+train: ./working/train_images.txt
+val: ./working/val_images.txt
