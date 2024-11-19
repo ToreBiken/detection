@@ -1,75 +1,45 @@
-import subprocess
-import sys
-
-def install_requirements():
-    """
-    Проверяет и устанавливает зависимости из requirements.txt.
-    """
-    try:
-        import pip
-    except ImportError:
-        print("Pip не установлен. Пожалуйста, установите pip и запустите скрипт снова.")
-        sys.exit(1)
-
-    print("Проверка и установка зависимостей из requirements.txt...")
-    try:
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
-    except subprocess.CalledProcessError as e:
-        print(f"Ошибка при установке зависимостей: {e}")
-        sys.exit(1)
-
-# Вызываем функцию установки зависимостей
-install_requirements()
-
+import streamlit as st
 import cv2
 import numpy as np
-from flask import Flask, render_template, request, Response
-from flask_socketio import SocketIO
-import torch  # Импортируем torch для работы с YOLOv5
-
-# Инициализация Flask
-app = Flask(__name__)
+import torch  # Для работы с YOLOv5
+from PIL import Image
+import pathlib
+temp = pathlib.PosixPath
+pathlib.PosixPath = pathlib.WindowsPath
 
 # Загрузка модели YOLO
-model = torch.hub.load('./yolov5', 'custom', path='best.pt', source='local')
+model = torch.hub.load('ultralytics/yolov5', 'custom', path='best.pt', source='github', force_reload=True)
 
-# Настройка камеры
-camera = cv2.VideoCapture(0)  # 0 — первая веб-камера; замените на 1, если подключена вторая
 
-def generate_frames():
-    """
-    Генерирует видеопоток с аннотациями YOLO.
-    """
+
+# Функция для обработки изображений
+def process_frame(frame):
+    results = model(frame)
+    annotated_frame = results.render()[0]  # Получаем кадр с аннотациями
+    return annotated_frame
+
+
+st.title("YOLO Webcam Detection with Streamlit")
+
+# Включаем веб-камеру
+camera = cv2.VideoCapture(0)
+
+run_detection = st.button("Start Detection")
+
+if run_detection:
+    stframe = st.empty()  # Placeholder для отображения видео
     while True:
-        success, frame = camera.read()  # Считывание кадра с камеры
+        success, frame = camera.read()  # Считывание кадра
         if not success:
+            st.error("Ошибка при доступе к камере.")
             break
 
-        # Инференс с использованием YOLO
-        results = model(frame)
-        annotated_frame = results.render()[0]  # Получаем кадр с аннотациями
+        # Применяем YOLO
+        annotated_frame = process_frame(frame)
 
-        # Конвертируем изображение в формат JPEG
-        _, buffer = cv2.imencode('.jpg', annotated_frame)
-        frame = buffer.tobytes()
+        # Преобразуем изображение в формат для Streamlit
+        annotated_frame = cv2.cvtColor(annotated_frame, cv2.COLOR_BGR2RGB)
+        img = Image.fromarray(annotated_frame)
 
-        # Генерация фрейма для Flask
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-
-@app.route("/")
-def index():
-    """
-    Главная страница сервиса.
-    """
-    return "YOLO Webcam API is running!"
-
-@app.route("/video_feed")
-def video_feed():
-    """
-    Маршрут для видеопотока.
-    """
-    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0')
+        # Отображаем результат
+        stframe.image(img, use_column_width=True)
